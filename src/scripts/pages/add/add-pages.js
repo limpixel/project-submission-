@@ -27,7 +27,7 @@ export default class AddPage {
 
           <p id="koordinat">Koordinat dipilih: -</p>
 
-          <div id="map"></div>
+          <div id="map" style="height: 300px; margin-top: 10px; border-radius: 10px; overflow: hidden;"></div>
 
           <button type="submit" id="kirim">Kirim Data</button>
         </form>
@@ -38,13 +38,10 @@ export default class AddPage {
   }
 
   async afterRender() {
-    // Tambahkan script Leaflet
-    const leafletCss = document.createElement("link");
-    leafletCss.rel = "stylesheet";
-    leafletCss.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-    document.head.appendChild(leafletCss);
+    // Ambil token user
+    const token = localStorage.getItem("token");
 
-    // Auth Token
+    // Proteksi halaman jika belum login
     if (!token) {
       alert("Anda harus login terlebih dahulu!");
       window.location.hash = "#/login";
@@ -52,19 +49,30 @@ export default class AddPage {
       return;
     }
 
+    // Tambahkan CSS Leaflet
+    const leafletCss = document.createElement("link");
+    leafletCss.rel = "stylesheet";
+    leafletCss.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+    document.head.appendChild(leafletCss);
+
+    // Tambahkan JS Leaflet dan jalankan map setelah load
     const leafletJs = document.createElement("script");
     leafletJs.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
     leafletJs.onload = () => {
       this.initMap();
-      this.handleFormSubmit();
+      this.handleFormSubmit(token);
     };
     document.body.appendChild(leafletJs);
   }
 
   initMap() {
     const mapElement = document.getElementById("map");
-    if (!mapElement) return;
+    if (!mapElement) {
+      console.error("Elemen map tidak ditemukan.");
+      return;
+    }
 
+    // Inisialisasi peta
     const map = L.map("map").setView([-6.2, 106.816666], 5);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 18,
@@ -73,20 +81,22 @@ export default class AddPage {
 
     let marker;
 
+    // Event klik untuk ambil koordinat
     map.on("click", (e) => {
       const { lat, lng } = e.latlng;
+
       if (marker) map.removeLayer(marker);
       marker = L.marker([lat, lng]).addTo(map);
 
-      document.getElementById("latitude").value = lat;
-      document.getElementById("longitude").value = lng;
-      document.getElementById(
-        "koordinat"
-      ).textContent = `Koordinat dipilih: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      document.getElementById("latitude").value = lat.toFixed(5);
+      document.getElementById("longitude").value = lng.toFixed(5);
+      document.getElementById("koordinat").textContent = `Koordinat dipilih: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     });
+
+    console.log("Peta berhasil diinisialisasi.");
   }
 
-  handleFormSubmit() {
+  handleFormSubmit(token) {
     const form = document.getElementById("add-form");
     const message = document.getElementById("response-message");
 
@@ -98,20 +108,26 @@ export default class AddPage {
       const lat = document.getElementById("latitude").value;
       const lon = document.getElementById("longitude").value;
 
+      // 🔍 Validasi manual tambahan
+      if (deskripsi.length < 10) {
+        message.textContent = "Deskripsi minimal 10 karakter.";
+        message.style.color = "red";
+        return;
+      }
+
+
       if (!deskripsi || !gambar) {
         message.textContent = "Deskripsi dan gambar wajib diisi.";
         message.style.color = "red";
         return;
       }
 
-      // Validasi ukuran gambar (maks 1MB)
       if (gambar.size > 1024 * 1024) {
         message.textContent = "Ukuran gambar maksimal 1MB.";
         message.style.color = "red";
         return;
       }
 
-      // Buat FormData untuk multipart/form-data
       const formData = new FormData();
       formData.append("description", deskripsi);
       formData.append("photo", gambar);
@@ -124,16 +140,13 @@ export default class AddPage {
       message.style.color = "gray";
 
       try {
-        const response = await fetch(
-          "https://story-api.dicoding.dev/v1/stories",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ1c2VyLXpCQlFEcnJlVE9ZeVBMVEciLCJpYXQiOjE3NjE1NDg0MDJ9.UeOYSyNkx2671Q4uyeuj5HeE6a08bRWCbvpWRL-inr8`, // tambahkan 'Bearer '
-            },
-            body: formData,
-          }
-        );
+        const response = await fetch("https://story-api.dicoding.dev/v1/stories", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
 
         const result = await response.json();
 

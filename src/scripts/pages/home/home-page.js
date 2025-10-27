@@ -10,7 +10,17 @@ export default class HomePage {
         box-shadow: 0 2px 10px rgba(0,0,0,0.08);
         font-family: 'Inter', sans-serif;
       ">
-        <h1 style="text-align:center; margin-bottom: 1.5rem; color: #2c3e50;">📚 Daftar Cerita</h1>
+        <div style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1.5rem;
+          flex-wrap: wrap;
+          gap: 1rem;
+        ">
+          <h1 style="color: #2c3e50;">📚 Daftar Cerita</h1>
+          <div id="user-info" style="font-size: 15px; color: #34495e;"></div>
+        </div>
 
         <!-- Filter lokasi dan tombol tambah -->
         <div style="
@@ -77,12 +87,61 @@ export default class HomePage {
   async afterRender() {
     const page = document.querySelector("#home-page");
     setTimeout(() => page.classList.add("active"), 50);
-    
-    
 
-    const token =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ1c2VyLXpCQlFEcnJlVE9ZeVBMVEciLCJpYXQiOjE3NjEzMTcyOTB9.wIcMYXX4BZnWCPHneqm0g9gGKvigm5IYu6cYlTaPRcE";
+    // 🔐 Ambil data user login dari localStorage
+    const token = localStorage.getItem("token");
+    const userData = JSON.parse(localStorage.getItem("user")) || {};
 
+    // Proteksi: jika belum login, arahkan ke halaman login
+    // if (!token) {
+    //   alert("Anda harus login terlebih dahulu!");
+    //   window.location.hash = "#/login";
+    //   return;
+    // }
+
+    // 👋 Tampilkan nama user di pojok kanan atas
+    const userInfo = document.getElementById("user-info");
+    userInfo.innerHTML = `
+      <span>👋 Halo, <strong>${userData.name || "Pengguna"}</strong></span>
+      <button id="logout-btn" style="
+        margin-left: 10px;
+        background: #e74c3c;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: 0.2s;
+      " onmouseover="this.style.backgroundColor='#c0392b'" onmouseout="this.style.backgroundColor='#e74c3c'">
+        Keluar
+      </button>
+    `;
+
+    // 🚪 Tombol logout
+    document.getElementById("logout-btn").addEventListener("click", () => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      alert("Anda telah logout.");
+      window.location.hash = "#/login";
+    });
+
+    // 🗺️ Tambahkan CSS Leaflet jika belum ada
+    if (!document.querySelector('link[href*="leaflet.css"]')) {
+      const leafletCss = document.createElement("link");
+      leafletCss.rel = "stylesheet";
+      leafletCss.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(leafletCss);
+    }
+
+    // Tambahkan JS Leaflet
+    const leafletJs = document.createElement("script");
+    leafletJs.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    leafletJs.onload = () => this.loadStories(token);
+    document.body.appendChild(leafletJs);
+  }
+
+  async loadStories(token) {
     const limitText = (text, maxLength = 100) =>
       text.length > maxLength ? text.slice(0, maxLength) + "..." : text;
 
@@ -135,7 +194,6 @@ export default class HomePage {
           const latitude = story.lat ? story.lat.toFixed(5) : "-";
           const longitude = story.lon ? story.lon.toFixed(5) : "-";
 
-          // 🎴 Card tampilan
           storyItem.innerHTML = `
             <div class="story-card" style="
               background: #f9fafb;
