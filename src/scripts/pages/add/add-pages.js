@@ -1,5 +1,16 @@
 export default class AddPage {
   async render() {
+    // 🌟 Tambahkan animasi transisi saat render halaman
+    if (document.startViewTransition) {
+      document.startViewTransition(() => {
+        document.body.style.opacity = "0";
+        setTimeout(() => {
+          document.body.style.transition = "opacity 0.3s";
+          document.body.style.opacity = "1";
+        }, 10);
+      });
+    }
+
     return `
       <section id="add-page" class="container">
         <h1>Tambah Data Baru</h1>
@@ -38,13 +49,19 @@ export default class AddPage {
   }
 
   async afterRender() {
-    // Ambil token user
     const token = localStorage.getItem("token");
 
     // Proteksi halaman jika belum login
     if (!token) {
-      alert("Anda harus login terlebih dahulu!");
-      window.location.hash = "#/login";
+      if (document.startViewTransition) {
+        document.startViewTransition(() => {
+          alert("Anda harus login terlebih dahulu!");
+          window.location.hash = "#/login";
+        });
+      } else {
+        alert("Anda harus login terlebih dahulu!");
+        window.location.hash = "#/login";
+      }
       console.warn("User not authenticated. Redirecting to login.");
       return;
     }
@@ -55,7 +72,7 @@ export default class AddPage {
     leafletCss.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
     document.head.appendChild(leafletCss);
 
-    // Tambahkan JS Leaflet dan jalankan map setelah load
+    // Tambahkan JS Leaflet
     const leafletJs = document.createElement("script");
     leafletJs.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
     leafletJs.onload = () => {
@@ -72,7 +89,6 @@ export default class AddPage {
       return;
     }
 
-    // Inisialisasi peta
     const map = L.map("map").setView([-6.2, 106.816666], 5);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 18,
@@ -108,13 +124,12 @@ export default class AddPage {
       const lat = document.getElementById("latitude").value;
       const lon = document.getElementById("longitude").value;
 
-      // 🔍 Validasi manual tambahan
+      // 🔍 Validasi tambahan
       if (deskripsi.length < 10) {
         message.textContent = "Deskripsi minimal 10 karakter.";
         message.style.color = "red";
         return;
       }
-
 
       if (!deskripsi || !gambar) {
         message.textContent = "Deskripsi dan gambar wajib diisi.";
@@ -151,9 +166,18 @@ export default class AddPage {
         const result = await response.json();
 
         if (response.ok) {
-          message.textContent = "✅ Data berhasil dikirim!";
-          message.style.color = "green";
-          form.reset();
+          // 🌟 Tambahkan transisi sukses
+          if (document.startViewTransition) {
+            document.startViewTransition(() => {
+              message.textContent = "✅ Data berhasil dikirim!";
+              message.style.color = "green";
+              form.reset();
+            });
+          } else {
+            message.textContent = "✅ Data berhasil dikirim!";
+            message.style.color = "green";
+            form.reset();
+          }
         } else {
           message.textContent = `❌ Gagal: ${result.message}`;
           message.style.color = "red";
