@@ -1,23 +1,75 @@
-
-
 export default class HomePage {
   async render() {
     return `
-      <section id="home-page" class="container">
-        <h1>Daftar Cerita</h1>
+      <section id="home-page" class="container" style="
+        max-width: 1440px;
+        margin: 2rem auto;
+        padding: 1.5rem;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        font-family: 'Inter', sans-serif;
+      ">
+        <h1 style="text-align:center; margin-bottom: 1.5rem; color: #2c3e50;">📚 Daftar Cerita</h1>
 
-        <!-- Filter lokasi -->
-        <div style="margin: 1rem 0;">
-          <label for="region-filter"><b>Filter berdasarkan daerah:</b></label>
-          <select id="region-filter" style="margin-left: 8px; padding: 6px;">
-            <option value="all">Semua Daerah</option>
-          </select>
+        <!-- Filter lokasi dan tombol tambah -->
+        <div style="
+          margin-bottom: 1.5rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 1rem;
+        ">
+          <div style="flex: 1;">
+            <label for="region-filter" style="font-weight: 600; color: #34495e;">Filter berdasarkan daerah:</label>
+            <select id="region-filter" style="
+              margin-left: 8px;
+              padding: 8px 10px;
+              border-radius: 6px;
+              border: 1px solid #ccc;
+              font-size: 14px;
+            ">
+              <option value="all">Semua Daerah</option>
+            </select>
+          </div>
+
+          <a href="#/data-add" class="btn-add-story" style="
+            background-color: #3498db;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: 0.2s;
+          " onmouseover="this.style.backgroundColor='#2980b9'" onmouseout="this.style.backgroundColor='#3498db'">
+            + Tambah Cerita
+          </a>
         </div>
 
-        <div id="story-list" class="story-list"></div>
+        <!-- Daftar cerita -->
+        <div id="story-list" class="story-list" style="
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 1.2rem;
+        "></div>
 
-        <h2 style="margin-top: 2rem;">Peta Lokasi Cerita</h2>
-        <div id="map" class="map-container"></div>
+        <h2 style="
+          margin-top: 2rem;
+          text-align: center;
+          color: #2c3e50;
+          border-top: 1px solid #eee;
+          padding-top: 1rem;
+        ">
+          🗺️ Peta Lokasi Cerita
+        </h2>
+        <div id="map" class="map-container" style="
+          width: 100%;
+          height: 400px;
+          margin-top: 1rem;
+          border-radius: 8px;
+          overflow: hidden;
+        "></div>
       </section>
     `;
   }
@@ -25,16 +77,15 @@ export default class HomePage {
   async afterRender() {
     const page = document.querySelector("#home-page");
     setTimeout(() => page.classList.add("active"), 50);
+    
+    
 
-    // 🪪 Token login
     const token =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ1c2VyLXpCQlFEcnJlVE9ZeVBMVEciLCJpYXQiOjE3NjEzMTcyOTB9.wIcMYXX4BZnWCPHneqm0g9gGKvigm5IYu6cYlTaPRcE";
 
-    // 🔤 Fungsi membatasi panjang teks agar rapi
     const limitText = (text, maxLength = 100) =>
       text.length > maxLength ? text.slice(0, maxLength) + "..." : text;
 
-    // 🌍 Fungsi untuk mendapatkan nama lokasi dari lat/lon
     const getLocationName = async (lat, lon) => {
       try {
         const res = await fetch(
@@ -48,14 +99,12 @@ export default class HomePage {
           data.address.county ||
           "Tidak diketahui"
         );
-      } catch (err) {
-        console.error("Reverse geocoding error:", err);
+      } catch {
         return "Tidak diketahui";
       }
     };
 
     try {
-      // 🔽 Ambil data story dari API Dicoding
       const response = await fetch("https://story-api.dicoding.dev/v1/stories", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -65,15 +114,14 @@ export default class HomePage {
       storyListContainer.innerHTML = "";
 
       // 🗺️ Inisialisasi peta
-      const map = L.map("map").setView([-2.5, 118], 5); // pusat Indonesia
+      const map = L.map("map").setView([-2.5, 118], 5);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
 
-      // 🗂️ Kumpulan nama daerah unik untuk filter dropdown
       const regionSet = new Set();
 
-      if (data.listStory && data.listStory.length > 0) {
+      if (data.listStory?.length) {
         for (const story of data.listStory) {
           const storyItem = document.createElement("div");
           storyItem.classList.add("story-item");
@@ -87,29 +135,51 @@ export default class HomePage {
           const latitude = story.lat ? story.lat.toFixed(5) : "-";
           const longitude = story.lon ? story.lon.toFixed(5) : "-";
 
-          // 🎴 Render card list
+          // 🎴 Card tampilan
           storyItem.innerHTML = `
-            <div class="story-card">
-              <img src="${story.photoUrl}" alt="${story.name}" class="story-image" />
-              <div class="story-info">
-                <h3>${story.name}</h3>
-                <p>${limitText(story.description, 100)}</p>
-                <p class="story-location">📍 ${locationName} (${latitude}, ${longitude})</p>
+            <div class="story-card" style="
+              background: #f9fafb;
+              border: 1px solid #e1e1e1;
+              border-radius: 10px;
+              overflow: hidden;
+              transition: transform 0.2s ease, box-shadow 0.2s ease;
+            " onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 6px 14px rgba(0,0,0,0.08)';"
+              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+              
+              <img src="${story.photoUrl}" alt="${story.name}" style="
+                width: 100%;
+                height: 180px;
+                object-fit: cover;
+              "/>
+              
+              <div style="padding: 0.8rem 1rem;">
+                <h3 style="margin-bottom: 0.4rem; color:#2c3e50;">${story.name}</h3>
+                <p style="font-size: 14px; color:#555; line-height:1.4;">${limitText(
+                  story.description,
+                  100
+                )}</p>
+                <p class="story-location" style="
+                  margin-top: 0.5rem;
+                  font-size: 13px;
+                  color: #777;
+                ">
+                  📍 ${locationName} (${latitude}, ${longitude})
+                </p>
               </div>
             </div>
           `;
           storyListContainer.appendChild(storyItem);
 
-          // 📍 Tambahkan marker pada peta
           if (story.lat && story.lon) {
             const marker = L.marker([story.lat, story.lon]).addTo(map);
-
-            // 💬 Popup detail pada marker
             const popupContent = `
               <div style="text-align:center; width:160px;">
                 <img src="${story.photoUrl}" alt="${story.name}" width="100%" style="border-radius:8px; margin-bottom:4px;"/>
                 <h4 style="margin:4px 0;">${story.name}</h4>
-                <p style="font-size:12px; color:#555;">${limitText(story.description, 80)}</p>
+                <p style="font-size:12px; color:#555;">${limitText(
+                  story.description,
+                  80
+                )}</p>
                 <p style="font-size:11px; color:#777;">📍 ${locationName}</p>
                 <p style="font-size:11px; color:#999;">(${latitude}, ${longitude})</p>
               </div>
@@ -118,7 +188,7 @@ export default class HomePage {
           }
         }
 
-        // 🧩 Isi dropdown filter daerah
+        // Dropdown filter lokasi
         const regionFilter = document.getElementById("region-filter");
         regionSet.forEach((region) => {
           const option = document.createElement("option");
@@ -127,7 +197,6 @@ export default class HomePage {
           regionFilter.appendChild(option);
         });
 
-        // 🔍 Event filter lokasi
         regionFilter.addEventListener("change", (e) => {
           const selected = e.target.value.toLowerCase();
           document.querySelectorAll(".story-item").forEach((card) => {
@@ -141,12 +210,12 @@ export default class HomePage {
           });
         });
       } else {
-        storyListContainer.innerHTML = `<p>Tidak ada data story tersedia.</p>`;
+        storyListContainer.innerHTML = `<p style="text-align:center;">Tidak ada data story tersedia.</p>`;
       }
     } catch (error) {
       console.error("Error:", error);
       document.getElementById("story-list").innerHTML =
-        `<p>Gagal memuat data stories.</p>`;
+        `<p style="color:red; text-align:center;">Gagal memuat data stories.</p>`;
     }
   }
 }
