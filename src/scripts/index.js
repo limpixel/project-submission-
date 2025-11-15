@@ -1,17 +1,229 @@
-// CSS imports
+// scripts/index.js
 import '../styles/styles.css';
-
 import App from './pages/app';
+import { getVapidPublicKey, sendSubscriptionToServer, unsubscribeFromServer, addStoryFromOutbox } from './data/api.js';
+import { saveOutbox,getOutbox, deleteOutbox } from './utils/idb.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const app = new App({
     content: document.querySelector('#main-content'),
-    drawerButton: document.querySelector('#drawer-button'),
-    navigationDrawer: document.querySelector('#navigation-drawer'),
+    drawerButton: document.querySelector('.drawer-button'),
+    navigationDrawer: document.querySelector('.navigation-drawer'),
   });
+
+  const loginLink = document.getElementById('login-link');
+  const token = localStorage.getItem('token');
+
+  if (!token) {
+    if (window.location.hash === '' || window.location.hash === '#/' || window.location.hash === '#/home') {
+      window.location.hash = '#/login';
+    }
+  } else {
+    if (window.location.hash === '#/login' || window.location.hash === '#/register') {
+      window.location.hash = '#/';
+    }
+  }
+
+
+  if (token) {
+    loginLink.textContent = 'Logout';
+    loginLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem('token');
+      alert('Berhasil logout');
+      window.location.hash = '#/login';
+      window.location.reload();
+    });
+  } else {
+    loginLink.textContent = 'Login';
+    loginLink.href = '#/login';
+  }
+
+
   await app.renderPage();
 
-  window.addEventListener('hashchange', async () => {
-    await app.renderPage();
-  });
+  // Register service worker and setup push + offline sync
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.register('/service-worker.js');
+      console.log('Service Worker registered', reg);
+
+      // Setup PWA install prompt
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        console.log('beforeinstallprompt event fired');
+        e.preventDefault();
+        deferredPrompt = e;
+        // Show install button or banner after a delay
+        setTimeout(() => showInstallPrompt(), 3000);
+      });
+
+      const showInstallPrompt = () => {
+        if (deferredPrompt) {
+          Swal.fire({
+            title: 'Install StoryApp',
+            text: 'Install aplikasi ini untuk pengalaman yang lebih baik!',
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: 'Install',
+            cancelButtonText: 'Nanti'
+          }).then((result) => {
+            if (result.isConfirmed) {
+              deferredPrompt.prompt();
+              deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                  console.log('User accepted the install prompt');
+                }
+                deferredPrompt = null;
+              });
+            }
+          });
+        }
+      };
+
+      // Sync outbox when back online
+      const syncOutbox = async () => {
+        if (!navigator.onLine) return;
+        try {
+          const items = await getOutbox();
+          for (const entry of items) {
+            const key = entry.key;
+            const item = entry.value;
+            try {
+              await addStoryFromOutbox(item);
+              // delete on success
+              await deleteOutbox(key);
+              console.log('Synced outbox item', key);
+            } catch (err) {
+              console.warn('Sync outbox item failed', err);
+            }
+          }
+        } catch (err) {
+          console.warn('Sync outbox error', err);
+        }
+      };
+
+      window.addEventListener('online', () => syncOutbox());
+      // try sync on load
+      syncOutbox();
+
+      // Push subscription toggle
+      const pushToggle = document.getElementById('pushToggle');
+      if (pushToggle) {
+        const registration = await navigator.serviceWorker.ready;
+        const existingSub = await registration.pushManager.getSubscription();
+        pushToggle.checked = !!existingSub;
+
+        pushToggle.addEventListener('change', async (e) => {
+          if (e.target.checked) {
+            // subscribe
+            const key = 'BCCs2eonMI-6H2ctvFaWg-UYdDv387Vno_bzUzALpB442r2lCnsHmtrx8biyPi_E-1fSGABK_Qs_GlvPoJJqxbk';
+            const applicationServerKey = urlBase64ToUint8Array(key);
+            try {
+              const sub = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey,
+              });
+              await sendSubscriptionToServer(sub);
+              localStorage.setItem('push-subscription', JSON.stringify(sub));
+              pushToggle.checked = true;
+              console.log('Push subscribed');
+              Swal.fire({
+                icon: "success",
+                title: "Notifikasi diaktifkan 🎉",
+                text: "Kamu akan menerima pembaruan terbaru.",
+                timer: 2500,
+                showConfirmButton: false,
+              });
+            } catch (err) {
+              console.error('Failed to subscribe', err);
+              pushToggle.checked = false;
+              Swal.fire({
+                icon: "error",
+                title: "Gagal mengaktifkan notifikasi",
+                text: err.message,
+                confirmButtonColor: "#dc2626",
+              });
+            }
+          } else {
+            // unsubscribe
+            try {
+              const sub = await registration.pushManager.getSubscription();
+              if (sub) {
+                await sub.unsubscribe();
+                await unsubscribeFromServer(sub.endpoint);
+              }
+              localStorage.removeItem('push-subscription');
+              console.log('Push unsubscribed');
+              Swal.fire({
+                icon: "info",
+                title: "Notifikasi dimatikan",
+                text: "Kamu tidak akan menerima notifikasi.",
+                timer: 2000,
+                showConfirmButton: false,
+              });
+            } catch (err) {
+              console.warn('Unsubscribe failed', err);
+            }
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('Service worker register failed', err);
+    }
+  }
+
+  // small helper
+  function urlBase64ToUint8Array(base64String) {
+    if (!base64String) return undefined;
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  const handleRouteChange = async () => {
+    if (!document.startViewTransition) {
+      await app.renderPage();
+      return;
+    }
+
+    document.startViewTransition(async () => {
+      await app.renderPage();
+    });
+  };
+
+  window.addEventListener('hashchange', handleRouteChange);
+  window.addEventListener('load', handleRouteChange);
+});
+
+async function addNewStoryOffline(description, photoBlob) {
+  // simpan dulu di IndexedDB
+  await saveOutbox({ description, photoBlob });
+  alert('Story disimpan offline dan akan diunggah otomatis saat online!');
+}
+
+window.addEventListener('online', async () => {
+  const token = localStorage.getItem('token');
+  const outbox = await getOutbox();
+
+  for (const item of outbox) {
+    const formData = new FormData();
+    formData.append('description', item.value.description);
+    formData.append('photo', item.value.photoBlob);
+
+    try {
+      await fetch('https://story-api.dicoding.dev/v1/stories', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      await deleteOutbox(item.key);
+      console.log('Story berhasil disinkronkan:', item.key);
+    } catch (err) {
+      console.warn('Gagal sinkronisasi story offline:', err);
+    }
+  }
 });

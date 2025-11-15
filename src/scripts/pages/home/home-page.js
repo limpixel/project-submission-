@@ -1,295 +1,266 @@
+
+
+import L from 'leaflet';
+import { getStories } from '../../data/api.js';
+import { getAllStories, saveStories, deleteStory, saveFavorite } from '../../utils/idb.js';
+
 export default class HomePage {
   async render() {
-    const token = localStorage.getItem("token");
-    const userData = JSON.parse(localStorage.getItem("user")) || {};
-
-    // 🌟 Efek transisi halus
-    if (document.startViewTransition) {
-      document.startViewTransition(() => {
-        const main = document.querySelector("#app");
-        if (main) {
-          main.animate([{ opacity: 0 }, { opacity: 1 }], {
-            duration: 500,
-            easing: "ease-in-out",
-          });
-        }
-      });
-    }
-
-    // 🌟 Tampilan halaman utama
     return `
-      <section id="home-page" style="
-        max-width: 1280px;
-        margin: 2rem auto;
-        padding: 1.5rem;
-        font-family: 'Inter', sans-serif;
-      ">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-          <h1 style="color:#2c3e50;">📚 Daftar Cerita</h1>
-          <div id="user-info" style="font-size:15px; color:#34495e;">
-            ${
-              token
-                ? `👋 Halo, <strong>${userData.name || "Pengguna"}</strong>
-                   <button id="logout-btn" style="
-                     margin-left:10px; background:#e74c3c; color:white; border:none;
-                     padding:6px 12px; border-radius:6px; cursor:pointer;
-                   ">Keluar</button>`
-                : `<button id="open-auth-btn" style="
-                     background:#3498db; color:white; border:none; padding:6px 12px;
-                     border-radius:6px; cursor:pointer;
-                   ">Login / Daftar</button>`
-            }
+      <section class="container home-page">
+        <h1>Home Page</h1>
+        <p id="offline-indicator" style="display:none; color:red;">⚠️ Anda sedang offline</p>
+        <p>Selamat datang di aplikasi SPA! Gunakan menu navigasi di atas untuk berpindah halaman.</p>
+
+          <div class="controls">
+            <label for="filter-location">
+              <input type="checkbox" id="filter-location" />
+              Tampilkan hanya stories dengan lokasi
+            </label>
+
+            <!-- Tambahan: Search dan Sort -->
+            <label for="search-input" style="margin-left: 10px;">Cari story:</label>
+            <input type="text" id="search-input" placeholder="Cari story..." />S
+            <button id="sort-button" data-order="desc">Urutkan: Terbaru ↓</button>
+
+          <!-- IndexedDB Management -->
+          <div class="idb-controls" style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <button id="view-saved-stories" style="padding: 8px 12px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer;">Lihat Koleksi Favorit</button>
+            <button id="clear-cached-stories" style="padding: 8px 12px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer;">Hapus Semua Stories Tersimpan</button>
           </div>
-        </div>
-
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-          <div>
-            <label for="region-filter" style="font-weight:600; color:#34495e;">Filter lokasi:</label>
-            <select id="region-filter" style="
-              margin-left:8px; padding:8px; border-radius:6px; border:1px solid #ccc;
-            ">
-              <option value="all">Semua Daerah</option>
-            </select>
           </div>
-          ${
-            token
-              ? `<a href="#/data-add" style="
-                   background-color:#3498db; color:white; padding:8px 16px; border-radius:6px;
-                   text-decoration:none; font-weight:600;
-                 ">+ Tambah Cerita</a>`
-              : `<button id="open-auth-btn-2" style="
-                   background-color:#95a5a6; color:white; padding:8px 16px; border-radius:6px;
-                   font-weight:600; cursor:pointer;
-                 ">Login untuk Menambah Cerita</button>`
-          }
-        </div>
 
-        <div id="story-list" style="
-          display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
-          gap:1.2rem;
-        "></div>
-
-        <h2 style="margin-top:2rem; text-align:center; color:#2c3e50;">🗺️ Peta Lokasi Cerita</h2>
-        <div id="map" style="width:100%; height:400px; border-radius:8px; overflow:hidden; margin-top:1rem;"></div>
-
-        <!-- Modal Login/Register -->
-        <div id="auth-modal" style="
-          display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-          background:rgba(0,0,0,0.5); justify-content:center; align-items:center;
-          z-index:9999; backdrop-filter: blur(3px);
-        ">
-          <div style="
-            background:white; padding:2rem; border-radius:16px; width:90%; max-width:400px;
-            box-shadow:0 4px 20px rgba(0,0,0,0.2); text-align:center;
-            overflow:hidden; box-sizing:border-box;
-          ">
-            <h2 style="color:#2c3e50; margin-bottom:1rem;">Masuk atau Daftar</h2>
-            
-            <div id="auth-tabs" style="
-              display:flex; justify-content:center; margin-bottom:1rem; border-radius:8px; overflow:hidden;
-            ">
-              <button id="tab-login" class="active" style="
-                flex:1; padding:10px; border:none; background:#3498db; color:white;
-                font-weight:600; cursor:pointer; transition:background 0.3s;
-              ">Login</button>
-              <button id="tab-register" style="
-                flex:1; padding:10px; border:none; background:#ecf0f1; color:#2c3e50;
-                font-weight:600; cursor:pointer; transition:background 0.3s;
-              ">Daftar</button>
-            </div>
-
-            <form id="login-form" style="display:block; margin-top:1rem;">
-              <div style="display:flex; flex-direction:column; gap:10px;">
-                <input type="email" id="email" placeholder="Email" required style="
-                  width:80%; padding:10px; border:1px solid #ccc; border-radius:6px;
-                "/>
-                <input type="password" id="password" placeholder="Password" required style="
-                  width:80%; padding:10px; border:1px solid #ccc; border-radius:6px;
-                "/>
-                <button type="submit" style="
-                  width:80%; background:#3498db; color:white; border:none;
-                  padding:10px; border-radius:6px; cursor:pointer; font-weight:600;
-                ">Login</button>
-              </div>
-            </form>
-
-            <form id="register-form" style="display:none; margin-top:1rem;">
-              <div style="display:flex; flex-direction:column; gap:10px;">
-                <input type="text" id="name" placeholder="Nama Lengkap" required style="
-                  width:80%; padding:10px; border:1px solid #ccc; border-radius:6px;
-                "/>
-                <input type="email" id="reg-email" placeholder="Email" required style="
-                  width:80%; padding:10px; border:1px solid #ccc; border-radius:6px;
-                "/>
-                <input type="password" id="reg-password" placeholder="Password" required style="
-                  width:80%; padding:10px; border:1px solid #ccc; border-radius:6px;
-                "/>
-                <button type="submit" style="
-                  width:80%; background:#2ecc71; color:white; border:none;
-                  padding:10px; border-radius:6px; cursor:pointer; font-weight:600;
-                ">Daftar</button>
-              </div>
-            </form>
-
-            <p id="auth-message" style="margin-top:10px; color:#555; font-size:14px;"></p>
-            <button id="close-modal" style="
-              margin-top:15px; background:#e74c3c; color:white;
-              border:none; padding:8px 16px; border-radius:6px; cursor:pointer;
-            ">Tutup</button>
-          </div>
+        <div class="story-section">
+          <div id="map" class="map" role="application" aria-label="Peta lokasi story"></div>
+          <div id="story-list" class="story-list"></div>
         </div>
       </section>
     `;
   }
 
   async afterRender() {
-    const token = localStorage.getItem("token");
-    const modal = document.getElementById("auth-modal");
+    const stories = await getStories();
+    const storyList = document.getElementById('story-list');
+    const filterCheckbox = document.getElementById('filter-location');
+    const mapContainer = document.getElementById('map');
+    const offlineIndicator = document.getElementById('offline-indicator');
 
-    // 🌍 Muat data cerita
-    await this.loadStories(token);
+    // tambahan elemen baru
+    const searchInput = document.getElementById('search-input');
+    const sortButton = document.getElementById('sort-button');
+    const viewSavedBtn = document.getElementById('view-saved-stories');
+    const clearCachedBtn = document.getElementById('clear-cached-stories');
 
-    // 🌟 Logout otomatis tanpa refresh manual
-    const logoutBtn = document.getElementById("logout-btn");
-    if (logoutBtn) {
-      logoutBtn.addEventListener("click", () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        alert("✅ Anda telah logout!");
-        window.location.href = "#/"; // langsung reload ke home tanpa refresh manual
-      });
+    // indikator offline
+    if (!navigator.onLine) offlineIndicator.style.display = 'block';
+    window.addEventListener('online', () => (offlineIndicator.style.display = 'none'));
+    window.addEventListener('offline', () => (offlineIndicator.style.display = 'block'));
+
+    // reset map container
+    if (mapContainer._leaflet_id) {
+      mapContainer._leaflet_id = null;
     }
 
-    // 🌟 Tampilkan modal login/register
-    const openAuthBtns = document.querySelectorAll("#open-auth-btn, #open-auth-btn-2");
-    openAuthBtns.forEach(btn => {
-      btn.addEventListener("click", () => {
-        modal.style.display = "flex";
-        this.initAuthForms(modal);
+    const map = L.map('map', {
+      center: [-2.5489, 118.0149],
+      zoom: 5,
+      zoomControl: true,
+    });
+
+    // base layers
+    const defaultLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map);
+
+    const satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '&copy; Google Maps',
+    });
+
+    L.control.layers({ Default: defaultLayer, Satellite: satelliteLayer }).addTo(map);
+
+    const renderMapAndList = (filteredStories) => {
+      storyList.innerHTML = filteredStories
+        .map((story) => {
+          const createdAt = story.createdAt
+            ? new Date(story.createdAt).toLocaleString('id-ID')
+            : 'Tanggal tidak tersedia';
+
+          return `
+            <article class="story-item" tabindex="0" data-lat="${story.lat}" data-lon="${story.lon}">
+              <img src="${story.photoUrl}" alt="Foto story oleh ${story.name}" loading="lazy" />
+              <h3>${story.name}</h3>
+              <p>${story.description}</p>
+              <small class="story-date">📅 ${createdAt}</small>
+              <button class="save-story-btn" data-id="${story.id}" data-name="${story.name}" data-description="${story.description}" data-photo="${story.photoUrl}" data-created="${story.createdAt}" data-lat="${story.lat}" data-lon="${story.lon}" style="margin-top: 10px; background: #2563eb; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                <i class="fas fa-save"></i> Simpan
+              </button>
+            </article>
+          `;
+        })
+        .join('');
+
+      map.eachLayer((layer) => {
+        if (layer instanceof L.Marker) map.removeLayer(layer);
       });
-    });
 
-    // Tutup modal
-    const closeModal = document.getElementById("close-modal");
-    closeModal.addEventListener("click", () => {
-      modal.style.display = "none";
-    });
-  }
+      const markers = [];
+      filteredStories.forEach((story) => {
+        if (story.lat && story.lon) {
+          const createdAt = story.createdAt
+            ? new Date(story.createdAt).toLocaleString('id-ID')
+            : 'Tanggal tidak tersedia';
 
-  initAuthForms(modal) {
-    const loginForm = document.getElementById("login-form");
-    const registerForm = document.getElementById("register-form");
-    const message = document.getElementById("auth-message");
-    const tabLogin = document.getElementById("tab-login");
-    const tabRegister = document.getElementById("tab-register");
-
-    tabLogin.addEventListener("click", () => {
-      tabLogin.style.background = "#3498db";
-      tabLogin.style.color = "white";
-      tabRegister.style.background = "#ecf0f1";
-      tabRegister.style.color = "#2c3e50";
-      loginForm.style.display = "block";
-      registerForm.style.display = "none";
-      message.textContent = "";
-    });
-
-    tabRegister.addEventListener("click", () => {
-      tabRegister.style.background = "#2ecc71";
-      tabRegister.style.color = "white";
-      tabLogin.style.background = "#ecf0f1";
-      tabLogin.style.color = "#2c3e50";
-      registerForm.style.display = "block";
-      loginForm.style.display = "none";
-      message.textContent = "";
-    });
-
-    // 🌟 Login
-    loginForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      message.textContent = "⏳ Sedang login...";
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value.trim();
-
-      const res = await fetch("https://story-api.dicoding.dev/v1/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const result = await res.json();
-
-      if (res.ok) {
-        localStorage.setItem("token", result.loginResult.token);
-        localStorage.setItem("user", JSON.stringify(result.loginResult));
-        alert("✅ Login berhasil, selamat datang " + result.loginResult.name + "!");
-        window.location.href = "#/"; // auto update tampilan tanpa refresh manual
-      } else {
-        alert(`❌ ${result.message}`);
-      }
-    });
-
-    // 🌟 Register
-    registerForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const name = document.getElementById("name").value.trim();
-      const email = document.getElementById("reg-email").value.trim();
-      const password = document.getElementById("reg-password").value.trim();
-
-      const res = await fetch("https://story-api.dicoding.dev/v1/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
-      const result = await res.json();
-
-      if (res.ok) {
-        alert("✅ Registrasi berhasil! Silakan login.");
-        tabLogin.click();
-      } else {
-        alert(`❌ ${result.message}`);
-      }
-    });
-  }
-
-  async loadStories(token) {
-    try {
-      const res = await fetch("https://story-api.dicoding.dev/v1/stories", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const data = await res.json();
-      const storyList = document.getElementById("story-list");
-      storyList.innerHTML = "";
-
-      // 🌍 Peta
-      const map = L.map("map").setView([-2.5, 118], 5);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap",
-      }).addTo(map);
-
-      if (data.listStory?.length) {
-        for (const s of data.listStory) {
-          const div = document.createElement("div");
-          div.style.background = "#fff";
-          div.style.borderRadius = "10px";
-          div.style.border = "1px solid #eee";
-          div.innerHTML = `
-            <img src="${s.photoUrl}" alt="${s.name}" style="width:100%;height:180px;object-fit:cover;"/>
-            <div style="padding:0.8rem 1rem;">
-              <h3 style="margin:0;color:#2c3e50;">${s.name}</h3>
-              <p style="font-size:14px;color:#555;">${s.description.slice(0,100)}...</p>
-            </div>`;
-          storyList.appendChild(div);
-
-          if (s.lat && s.lon) {
-            const m = L.marker([s.lat, s.lon]).addTo(map);
-            m.bindPopup(`<b>${s.name}</b><br>${s.description.slice(0,80)}...`);
-          }
+          const marker = L.marker([story.lat, story.lon])
+            .addTo(map)
+            .bindPopup(`
+              <b>${story.name}</b><br>
+              <small>${createdAt}</small><br>
+              <p>${story.description}</p>
+            `);
+          markers.push({ story, marker });
         }
-      } else {
-        storyList.innerHTML = "<p style='text-align:center;'>Tidak ada cerita ditemukan.</p>";
+      });
+
+      const storyItems = document.querySelectorAll('.story-item');
+      storyItems.forEach((item) => {
+        item.addEventListener('click', (e) => {
+          // Prevent click if save button was clicked
+          if (e.target.classList.contains('save-story-btn') || e.target.closest('.save-story-btn')) return;
+
+          const lat = parseFloat(item.dataset.lat);
+          const lon = parseFloat(item.dataset.lon);
+
+          if (!isNaN(lat) && !isNaN(lon)) {
+            map.flyTo([lat, lon], 10, { duration: 1 });
+            const found = markers.find((m) => m.story.lat === lat && m.story.lon === lon);
+            if (found) found.marker.openPopup();
+          }
+
+          storyItems.forEach((el) => el.classList.remove('active'));
+          item.classList.add('active');
+        });
+      });
+
+      // Save story buttons
+      const saveButtons = document.querySelectorAll('.save-story-btn');
+      saveButtons.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const storyData = {
+            id: btn.dataset.id,
+            name: btn.dataset.name,
+            description: btn.dataset.description,
+            photoUrl: btn.dataset.photo,
+            createdAt: btn.dataset.created,
+            lat: btn.dataset.lat ? parseFloat(btn.dataset.lat) : null,
+            lon: btn.dataset.lon ? parseFloat(btn.dataset.lon) : null,
+          };
+
+          try {
+            await saveFavorite(storyData);
+            Swal.fire({
+              icon: 'success',
+              title: 'Story disimpan!',
+              text: 'Story telah disimpan ke koleksi favorit.',
+              timer: 2000,
+              showConfirmButton: false,
+            });
+            btn.textContent = 'Tersimpan';
+            btn.disabled = true;
+            btn.style.background = '#10b981';
+          } catch (err) {
+            console.error('Save favorite error', err);
+            Swal.fire({
+              icon: 'error',
+              title: 'Gagal menyimpan',
+              text: err.message,
+              confirmButtonColor: '#dc2626',
+            });
+          }
+        });
+      });
+    };
+
+    renderMapAndList(stories);
+
+    // filter lokasi
+    filterCheckbox.addEventListener('change', () => {
+      const filtered = filterCheckbox.checked
+        ? stories.filter((s) => s.lat && s.lon)
+        : stories;
+      renderMapAndList(filtered);
+    });
+
+    // fitur pencarian
+    searchInput.addEventListener('input', async (e) => {
+      const keyword = e.target.value.toLowerCase();
+      let allStories = await getAllStories();
+      if (!allStories || allStories.length === 0) {
+        allStories = stories;
       }
-    } catch (err) {
-      document.getElementById("story-list").innerHTML =
-        "<p style='color:red;text-align:center;'>Gagal memuat cerita.</p>";
-    }
+      const filtered = allStories.filter(
+        (s) =>
+          s.description?.toLowerCase().includes(keyword) ||
+          s.name?.toLowerCase().includes(keyword)
+      );
+      renderMapAndList(filtered);
+    });
+
+    // fitur urutkan dengan toggle
+    sortButton.addEventListener('click', async () => {
+      let allStories = await getAllStories();
+      if (!allStories || allStories.length === 0) {
+        allStories = stories;
+      }
+
+      const order = sortButton.dataset.order;
+      if (order === 'desc') {
+        allStories.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        sortButton.textContent = 'Urutkan: Terlama ↑';
+        sortButton.dataset.order = 'asc';
+      } else {
+        allStories.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+        sortButton.textContent = 'Urutkan: Terbaru ↓';
+        sortButton.dataset.order = 'desc';
+      }
+
+      renderMapAndList(allStories);
+    });
+
+    // view saved stories button - navigate to saved stories page
+    viewSavedBtn.addEventListener('click', () => {
+      window.location.hash = '#/saved-stories';
+    });
+
+    // IndexedDB: Clear all cached stories
+    clearCachedBtn.addEventListener('click', async () => {
+      const result = await Swal.fire({
+        title: 'Hapus semua stories tersimpan?',
+        text: 'Tindakan ini tidak dapat dibatalkan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Ya, Hapus',
+        cancelButtonText: 'Batal'
+      });
+
+      if (result.isConfirmed) {
+        const cachedStories = await getAllStories();
+        for (const story of cachedStories) {
+          await deleteStory(story.id);
+        }
+        Swal.fire({
+          icon: 'success',
+          title: 'Semua stories dihapus',
+          text: 'Semua stories tersimpan telah dihapus dari IndexedDB.',
+          timer: 2000,
+        });
+      }
+    });
+
+    setTimeout(() => map.invalidateSize(), 500);
   }
 }

@@ -1,33 +1,29 @@
 export default class AboutPage {
   async render() {
-
-    const token = localStorage.getItem("token");
-
-    // 🌟 Efek transisi halus antar halaman
-    if (document.startViewTransition) {
-      document.startViewTransition(() => {
-        const main = document.querySelector('#app');
-        if (main) {
-          main.animate([{ opacity: 0 }, { opacity: 1 }], {
-            duration: 500,
-            easing: "ease-in-out",
-          });
-        }
-      });
-    }
-
     return `
-      <section id="about-page" class="container">
-        <h1>About Page</h1>
+      <section class="container about-page">
+        <div class="about-hero">
+          <h1>Tentang StoryApp</h1>
+          <p>
+            StoryApp adalah platform berbagi cerita dan foto berbasis lokasi. 
+            Setiap pengguna dapat menambahkan kisah mereka baik berupa pengalaman pribadi, 
+            perjalanan, atau momen berkesan yang akan muncul di peta agar orang lain 
+            bisa menemukan inspirasi dari berbagai tempat.
+          </p>
+        </div>
+
+        <div class="about-content">
+          <h2>Bagikan Ceritamu</h2>
+          <p>
+            Unggah foto dan tulis kisah menarikmu! Cerita yang kamu tambahkan akan 
+            muncul di halaman utama dan dapat dilihat pengguna lain di seluruh dunia.
+          </p>
+        </div>
       </section>
     `;
   }
 
   async afterRender() {
-    // Do your job here
-    const page = document.querySelector("#about-page");
-    setTimeout(() => {
-      page.classList.add('active');
-    }, 50);
+    console.log('AboutPage telah selesai dirender.');
   }
 }

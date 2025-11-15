@@ -11,7 +11,6 @@ class App {
     this.#drawerButton = drawerButton;
     this.#navigationDrawer = navigationDrawer;
 
-    // Kriteria 1 - Animation 
     this.#setupDrawer();
   }
 
@@ -37,25 +36,18 @@ class App {
   }
 
   async renderPage() {
-    const url = getActiveRoute();
-    const page = routes[url];
-    
-    // Transisi Halaman
-    this.#content.innerHTML = await page.render();
-    await new Promise((resolve) => setTimeout(resolve, 20)); // Delay kecil untuk memastikan render selesai sebelum afterRender dipanggil
+  const url = getActiveRoute();
+  const page = routes[url];
 
+  if (document.startViewTransition) {
+    document.startViewTransition(async () => {
+      this.#content.innerHTML = await page.render();
+      await page.afterRender();
+    });
+  } else {
     this.#content.innerHTML = await page.render();
-
-    // after content has been load, animation will be coming 
-    this.#content.classList.remove('fade-out');
-    this.#content.classList.add('fade-in');
-    
     await page.afterRender();
-
-    // Reset animation 
-    setTimeout(()=> {
-      this.#content.classList.remove('fade-in');
-    }, 400)
+    }
   }
 }
 
